@@ -2,168 +2,185 @@ package com.restaurant.modules.order.service;
 
 import com.restaurant.modules.menu.entity.Dish;
 import com.restaurant.modules.menu.repository.DishRepository;
+import com.restaurant.modules.notification.service.NotificationService;
 import com.restaurant.modules.order.dto.OrderDto;
-import com.restaurant.modules.order.entity.Order;
-import com.restaurant.modules.order.entity.OrderItem;
+import com.restaurant.modules.order.entity.*;
+import com.restaurant.modules.order.repository.OrderItemRepository;
 import com.restaurant.modules.order.repository.OrderRepository;
+import com.restaurant.modules.order.statemachine.OrderStateMachine;
 import com.restaurant.shared.exception.BadRequestException;
 import com.restaurant.shared.exception.ResourceNotFoundException;
 import com.restaurant.user.entity.User;
-import com.restaurant.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final DishRepository dishRepository;
-    private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final NotificationService notificationService;
 
     @Transactional
-    public OrderDto.OrderResponse createOrder(OrderDto.CreateOrderRequest request, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
-
-        if (request.getType() == Order.OrderType.DINE_IN && (request.getTableNumber() == null || request.getTableNumber().isBlank())) {
-            throw new BadRequestException("Le numéro de table est requis pour une commande sur place");
-        }
-
-        Order order = Order.builder()
-                .orderNumber(generateOrderNumber())
-                .user(user)
-                .type(request.getType())
-                .tableNumber(request.getTableNumber())
-                .deliveryAddress(request.getDeliveryAddress())
-                .notes(request.getNotes())
-                .status(Order.OrderStatus.RECEIVED)
-                .paid(false)
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
+    public OrderDto.Response createOrder(User user, OrderDto.CreateRequest request) {
+        List<OrderItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
 
         for (OrderDto.OrderItemRequest itemReq : request.getItems()) {
             Dish dish = dishRepository.findById(itemReq.getDishId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Plat introuvable : " + itemReq.getDishId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Plat introuvable: " + itemReq.getDishId()));
 
             if (!dish.isAvailable()) {
                 throw new BadRequestException("Le plat '" + dish.getName() + "' n'est plus disponible");
             }
 
+            BigDecimal itemTotal = dish.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
+            total = total.add(itemTotal);
+
             OrderItem item = OrderItem.builder()
-                    .order(order)
                     .dish(dish)
                     .quantity(itemReq.getQuantity())
                     .unitPrice(dish.getPrice())
-                    .specialInstructions(itemReq.getSpecialInstructions())
                     .build();
-
-            order.getItems().add(item);
-            total = total.add(dish.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity())));
+            items.add(item);
         }
 
-        order.setTotalAmount(total);
-        Order saved = orderRepository.save(order);
+        // Frais de livraison
+        BigDecimal deliveryFee = BigDecimal.ZERO;
+        DeliveryMode mode = request.getDeliveryMode() != null ? request.getDeliveryMode() : DeliveryMode.DELIVERY;
+        if (mode == DeliveryMode.DELIVERY) {
+            deliveryFee = new BigDecimal("15.00"); // TODO: calcul par zone
+        }
+        total = total.add(deliveryFee);
 
-        OrderDto.OrderResponse response = toOrderResponse(saved);
+        Order order = Order.builder()
+                .user(user)
+                .status(OrderStatus.PENDING)
+                .deliveryMode(mode)
+                .tableNumber(request.getTableNumber() != null ? request.getTableNumber() : 0)
+                .specialNote(request.getSpecialNote())
+                .deliveryFee(deliveryFee)
+                .totalAmount(total)
+                .items(new ArrayList<>())
+                .build();
 
-        // Notifier le personnel en temps réel
-        messagingTemplate.convertAndSend("/topic/orders/new", response);
+        Order savedOrder = orderRepository.save(order);
 
-        return response;
-    }
+        for (OrderItem item : items) {
+            item.setOrder(savedOrder);
+            savedOrder.getItems().add(orderItemRepository.save(item));
+        }
 
-    public List<OrderDto.OrderResponse> getActiveOrders() {
-        return orderRepository.findByStatusInOrderByCreatedAtAsc(
-                List.of(Order.OrderStatus.RECEIVED, Order.OrderStatus.PREPARING, Order.OrderStatus.READY)
-        ).stream().map(this::toOrderResponse).toList();
-    }
+        // Notifier le back-office + mobile
+        notificationService.notifyNewOrder(savedOrder.getId(),
+                request.getTableNumber() != null ? request.getTableNumber() : 0);
+        notificationService.notifyOrderStatusChange(
+                savedOrder.getId(), user.getId(), OrderStatus.PENDING);
 
-    public List<OrderDto.OrderResponse> getMyOrders(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
-        return orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
-                .stream().map(this::toOrderResponse).toList();
-    }
-
-    public OrderDto.OrderResponse getOrderById(Long id) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Commande introuvable : " + id));
-        return toOrderResponse(order);
+        log.info("Commande #{} créée pour {}", savedOrder.getId(), user.getEmail());
+        return toResponse(savedOrder);
     }
 
     @Transactional
-    public OrderDto.OrderResponse updateStatus(Long id, OrderDto.UpdateStatusRequest request) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Commande introuvable : " + id));
+    public OrderDto.Response updateStatus(Long orderId, OrderStatus newStatus) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Commande introuvable"));
 
-        order.setStatus(request.getStatus());
-        if (request.getEstimatedMinutes() != null) {
-            order.setEstimatedMinutes(request.getEstimatedMinutes());
+        // Validation machine d'états
+        OrderStateMachine.validate(order.getStatus(), newStatus);
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setStatus(newStatus);
+
+        if (newStatus == OrderStatus.DELIVERED) {
+            order.setDeliveredAt(LocalDateTime.now());
         }
 
         Order saved = orderRepository.save(order);
-        OrderDto.OrderResponse response = toOrderResponse(saved);
 
-        // Notifier le client + le tableau de bord
-        messagingTemplate.convertAndSend("/topic/orders/" + id + "/status", response);
-        messagingTemplate.convertAndSend("/topic/orders/updated", response);
+        // Notification push + WebSocket
+        notificationService.notifyOrderStatusChange(
+                orderId, order.getUser().getId(), newStatus);
 
-        return response;
+        log.info("Commande #{}: {} → {}", orderId, oldStatus, newStatus);
+        return toResponse(saved);
     }
 
-    public List<OrderDto.OrderResponse> getOrdersByPeriod(LocalDateTime from, LocalDateTime to) {
-        return orderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to)
-                .stream().map(this::toOrderResponse).toList();
+    public List<OrderDto.Response> getAllOrders() {
+        return orderRepository.findAll().stream()
+                .map(this::toResponse).collect(Collectors.toList());
     }
 
-    // ── Helpers ────────────────────────────────────────────
-
-    private String generateOrderNumber() {
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String uid = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        return "ORD-" + date + "-" + uid;
+    public List<OrderDto.Response> getMyOrders(User user) {
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    private OrderDto.OrderResponse toOrderResponse(Order o) {
-        List<OrderDto.OrderItemResponse> items = o.getItems().stream()
-                .map(item -> OrderDto.OrderItemResponse.builder()
+    public OrderDto.Response getById(Long id) {
+        return toResponse(orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Commande introuvable")));
+    }
+
+    @Transactional
+    public OrderDto.Response cancelOrder(Long orderId, User user) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Commande introuvable"));
+
+        // Seul le propriétaire ou un admin peut annuler
+        boolean isOwner = order.getUser().getId().equals(user.getId());
+        boolean isAdmin = user.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isOwner && !isAdmin) {
+            throw new BadRequestException("Accès refusé");
+        }
+
+        OrderStateMachine.validate(order.getStatus(), OrderStatus.CANCELLED);
+        order.setStatus(OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(order);
+
+        notificationService.notifyOrderStatusChange(orderId, order.getUser().getId(), OrderStatus.CANCELLED);
+
+        return toResponse(saved);
+    }
+
+    private OrderDto.Response toResponse(Order order) {
+        List<OrderDto.OrderItemResponse> items = order.getItems() == null ? List.of() :
+                order.getItems().stream().map(item -> OrderDto.OrderItemResponse.builder()
+                        .id(item.getId())
                         .dishId(item.getDish().getId())
                         .dishName(item.getDish().getName())
-                        .dishImageUrl(item.getDish().getImageUrl())
                         .quantity(item.getQuantity())
                         .unitPrice(item.getUnitPrice())
                         .subtotal(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                        .specialInstructions(item.getSpecialInstructions())
-                        .build())
-                .toList();
+                        .build()).collect(Collectors.toList());
 
-        return OrderDto.OrderResponse.builder()
-                .id(o.getId())
-                .orderNumber(o.getOrderNumber())
-                .status(o.getStatus())
-                .type(o.getType())
-                .tableNumber(o.getTableNumber())
-                .deliveryAddress(o.getDeliveryAddress())
-                .notes(o.getNotes())
-                .totalAmount(o.getTotalAmount())
-                .paid(o.isPaid())
-                .estimatedMinutes(o.getEstimatedMinutes())
+        return OrderDto.Response.builder()
+                .id(order.getId())
+                .status(order.getStatus())
+                .deliveryMode(order.getDeliveryMode())
+                .tableNumber(order.getTableNumber())
+                .specialNote(order.getSpecialNote())
+                .deliveryFee(order.getDeliveryFee())
+                .totalAmount(order.getTotalAmount())
                 .items(items)
-                .customerName(o.getUser() != null ? o.getUser().getName() : "Anonyme")
-                .createdAt(o.getCreatedAt())
-                .updatedAt(o.getUpdatedAt())
+                .userId(order.getUser().getId())
+                .userName(order.getUser().getName())
+                .createdAt(order.getCreatedAt())
+                .deliveredAt(order.getDeliveredAt())
                 .build();
     }
 }

@@ -27,9 +27,11 @@ public class AuthService {
         );
         User user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new BadRequestException("Utilisateur non trouve"));
-        String token = jwtProvider.generateToken(user.getEmail());
+        String token = jwtProvider.generateToken(user);
+        String refreshToken = jwtProvider.generateRefreshToken(user);
         return AuthDto.AuthResponse.builder()
             .accessToken(token)
+            .refreshToken(refreshToken)
             .tokenType("Bearer")
             .user(AuthDto.UserInfo.builder()
                 .id(user.getId())
@@ -51,9 +53,11 @@ public class AuthService {
             .role(Role.CLIENT)
             .build();
         userRepository.save(user);
-        String token = jwtProvider.generateToken(user.getEmail());
+        String token = jwtProvider.generateToken(user);
+        String refreshToken = jwtProvider.generateRefreshToken(user);
         return AuthDto.AuthResponse.builder()
             .accessToken(token)
+            .refreshToken(refreshToken)
             .tokenType("Bearer")
             .user(AuthDto.UserInfo.builder()
                 .id(user.getId())

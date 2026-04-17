@@ -15,38 +15,45 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/stats")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Statistiques", description = "Tableau de bord et indicateurs clés")
+@Tag(name = "Statistiques", description = "Tableau de bord")
 public class StatsController {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
 
     @GetMapping("/dashboard")
-    @Operation(summary = "Données du tableau de bord admin")
+    @Operation(summary = "Donnees du tableau de bord admin")
     public ResponseEntity<ApiResponse<DashboardStats>> getDashboard() {
-        LocalDateTime startOfDay = LocalDateTime.now().with(LocalTime.MIN);
-        LocalDateTime endOfDay   = LocalDateTime.now().with(LocalTime.MAX);
+        return ResponseEntity.ok(ApiResponse.success(buildStats()));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Resume statistiques")
+    public ResponseEntity<ApiResponse<DashboardStats>> getSummary() {
+        return ResponseEntity.ok(ApiResponse.success(buildStats()));
+    }
+
+    private DashboardStats buildStats() {
+        LocalDateTime startOfDay   = LocalDateTime.now().with(LocalTime.MIN);
+        LocalDateTime endOfDay     = LocalDateTime.now().with(LocalTime.MAX);
         LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).with(LocalTime.MIN);
 
         BigDecimal revenueToday = orderRepository.sumRevenueByPeriod(startOfDay, endOfDay);
         BigDecimal revenueMonth = orderRepository.sumRevenueByPeriod(startOfMonth, endOfDay);
-        Long ordersToday = orderRepository.countByPeriod(startOfDay, endOfDay);
-        long totalUsers = userRepository.count();
+        Long ordersToday        = orderRepository.countByPeriod(startOfDay, endOfDay);
+        long totalUsers         = userRepository.count();
 
-        DashboardStats stats = DashboardStats.builder()
+        return DashboardStats.builder()
                 .revenueToday(revenueToday != null ? revenueToday : BigDecimal.ZERO)
                 .revenueMonth(revenueMonth != null ? revenueMonth : BigDecimal.ZERO)
-                .ordersToday(ordersToday != null ? ordersToday : 0L)
+                .ordersToday(ordersToday  != null ? ordersToday  : 0L)
                 .totalUsers(totalUsers)
                 .build();
-
-        return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
     @Data @Builder

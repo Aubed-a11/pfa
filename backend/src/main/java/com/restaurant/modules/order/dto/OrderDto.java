@@ -1,11 +1,8 @@
 package com.restaurant.modules.order.dto;
 
-import com.restaurant.modules.order.entity.Order;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
+import com.restaurant.modules.order.entity.DeliveryMode;
+import com.restaurant.modules.order.entity.OrderStatus;
 import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,58 +10,50 @@ import java.util.List;
 public class OrderDto {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class CreateOrderRequest {
-        @NotEmpty(message = "La commande doit contenir au moins un article")
+    public static class CreateRequest {
         private List<OrderItemRequest> items;
-        @NotNull
-        private Order.OrderType type;
-        private String tableNumber;
-        private String deliveryAddress;
-        private String notes;
+        private Integer tableNumber;
+        private String specialNote;
+        private DeliveryMode deliveryMode;
+        private Long deliveryAddressId;
+        private String promoCode;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class OrderItemRequest {
-        @NotNull
         private Long dishId;
-        @Min(1)
-        private int quantity;
-        private String specialInstructions;
+        private Integer quantity;
+        private List<Long> supplementIds;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class UpdateStatusRequest {
-        @NotNull
-        private Order.OrderStatus status;
-        private Integer estimatedMinutes;
+    public static class StatusUpdateRequest {
+        private OrderStatus status;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class OrderResponse {
+    public static class Response {
         private Long id;
-        private String orderNumber;
-        private Order.OrderStatus status;
-        private Order.OrderType type;
-        private String tableNumber;
-        private String deliveryAddress;
-        private String notes;
+        private OrderStatus status;
+        private DeliveryMode deliveryMode;
+        private Integer tableNumber;
+        private String specialNote;
+        private BigDecimal deliveryFee;
         private BigDecimal totalAmount;
-        private boolean paid;
-        private Integer estimatedMinutes;
         private List<OrderItemResponse> items;
-        private String customerName;
+        private Long userId;
+        private String userName;
         private LocalDateTime createdAt;
-        private LocalDateTime updatedAt;
+        private LocalDateTime deliveredAt;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class OrderItemResponse {
+        private Long id;
         private Long dishId;
         private String dishName;
-        private String dishImageUrl;
-        private int quantity;
+        private Integer quantity;
         private BigDecimal unitPrice;
         private BigDecimal subtotal;
-        private String specialInstructions;
     }
 }

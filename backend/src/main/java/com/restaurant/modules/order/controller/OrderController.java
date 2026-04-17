@@ -1,64 +1,73 @@
 package com.restaurant.modules.order.controller;
 
 import com.restaurant.modules.order.dto.OrderDto;
+import com.restaurant.modules.order.entity.OrderStatus;
 import com.restaurant.modules.order.service.OrderService;
 import com.restaurant.shared.response.ApiResponse;
+import com.restaurant.user.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/orders")
 @RequiredArgsConstructor
-@SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Commandes", description = "Création et suivi des commandes")
+@Tag(name = "Commandes", description = "Gestion des commandes")
 public class OrderController {
 
     private final OrderService orderService;
 
     @PostMapping
-    @Operation(summary = "Créer une nouvelle commande")
-    public ResponseEntity<ApiResponse<OrderDto.OrderResponse>> createOrder(
-            @Valid @RequestBody OrderDto.CreateOrderRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        OrderDto.OrderResponse response = orderService.createOrder(request, userDetails.getUsername());
+    @Operation(summary = "Créer une commande")
+    public ResponseEntity<ApiResponse<OrderDto.Response>> create(
+            @AuthenticationPrincipal User user,
+            @RequestBody OrderDto.CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Commande créée", response));
+                .body(ApiResponse.success("Commande créée", orderService.createOrder(user, request)));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @Operation(summary = "Toutes les commandes (admin/staff)")
+    public ResponseEntity<ApiResponse<List<OrderDto.Response>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getAllOrders()));
     }
 
     @GetMapping("/my")
-    @Operation(summary = "Mes commandes (historique client)")
-    public ResponseEntity<ApiResponse<List<OrderDto.OrderResponse>>> getMyOrders(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(ApiResponse.success(orderService.getMyOrders(userDetails.getUsername())));
-    }
-
-    @GetMapping("/active")
-    @Operation(summary = "Commandes actives (cuisine / admin)")
-    public ResponseEntity<ApiResponse<List<OrderDto.OrderResponse>>> getActiveOrders() {
-        return ResponseEntity.ok(ApiResponse.success(orderService.getActiveOrders()));
+    @Operation(summary = "Mes commandes")
+    public ResponseEntity<ApiResponse<List<OrderDto.Response>>> getMyOrders(
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getMyOrders(user)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Détail d'une commande")
-    public ResponseEntity<ApiResponse<OrderDto.OrderResponse>> getOrder(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(orderService.getOrderById(id)));
+    public ResponseEntity<ApiResponse<OrderDto.Response>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getById(id)));
     }
 
     @PatchMapping("/{id}/status")
-    @Operation(summary = "Mettre à jour le statut d'une commande")
-    public ResponseEntity<ApiResponse<OrderDto.OrderResponse>> updateStatus(
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @Operation(summary = "Mettre à jour le statut")
+    public ResponseEntity<ApiResponse<OrderDto.Response>> updateStatus(
             @PathVariable Long id,
-            @Valid @RequestBody OrderDto.UpdateStatusRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(orderService.updateStatus(id, request)));
+            @RequestBody OrderDto.StatusUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Statut mis à jour", orderService.updateStatus(id, request.getStatus())));
+    }
+
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "Annuler une commande")
+    public ResponseEntity<ApiResponse<OrderDto.Response>> cancel(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Commande annulée", orderService.cancelOrder(id, user)));
     }
 }

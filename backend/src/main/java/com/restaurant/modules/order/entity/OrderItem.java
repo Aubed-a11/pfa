@@ -3,7 +3,6 @@ package com.restaurant.modules.order.entity;
 import com.restaurant.modules.menu.entity.Dish;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.math.BigDecimal;
 
 @Entity
@@ -25,11 +24,11 @@ public class OrderItem {
     private Dish dish;
 
     @Column(nullable = false)
-    private int quantity;
+    private Integer quantity;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(columnDefinition = "TEXT")
-    private String specialInstructions;
+    @Column(name = "instructions")
+    private String instructions;
 }

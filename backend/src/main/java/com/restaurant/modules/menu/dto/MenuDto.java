@@ -1,37 +1,28 @@
 package com.restaurant.modules.menu.dto;
 
-import jakarta.validation.constraints.*;
 import lombok.*;
-
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public class MenuDto {
 
-    // ── Category ──────────────────────────────────
+    // Utilise par MenuService.getAllCategories() et MenuController
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class CategoryRequest {
-        @NotBlank(message = "Le nom est obligatoire")
-        private String name;
-        private String description;
-        private String imageUrl;
-        private int displayOrder;
-    }
-
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class CategoryResponse {
+    public static class CategoryResponse implements Serializable {
         private Long id;
         private String name;
         private String description;
         private String imageUrl;
-        private int displayOrder;
+        private Integer displayOrder;
         private boolean active;
-        private int dishCount;
+        private Integer dishCount;
     }
 
+    // Utilise par MenuService.getFullMenu() et MenuController.getFullMenu()
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class CategoryWithDishes {
+    public static class CategoryWithDishes implements Serializable {
         private Long id;
         private String name;
         private String description;
@@ -39,25 +30,9 @@ public class MenuDto {
         private List<DishResponse> dishes;
     }
 
-    // ── Dish ──────────────────────────────────────
+    // Utilise par MenuController et MenuService pour les plats
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class DishRequest {
-        @NotBlank(message = "Le nom est obligatoire")
-        private String name;
-        private String description;
-        @NotNull @DecimalMin("0.01")
-        private BigDecimal price;
-        private String imageUrl;
-        private boolean available = true;
-        private boolean featured = false;
-        private Integer prepTimeMinutes;
-        private String allergens;
-        @NotNull(message = "La catégorie est obligatoire")
-        private Long categoryId;
-    }
-
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class DishResponse {
+    public static class DishResponse implements Serializable {
         private Long id;
         private String name;
         private String description;
@@ -70,5 +45,50 @@ public class MenuDto {
         private Long categoryId;
         private String categoryName;
         private LocalDateTime createdAt;
+    }
+
+    // Utilise par MenuController.createCategory() et MenuService.createCategory()
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class CategoryRequest {
+        private String name;
+        private String description;
+        private String imageUrl;
+        private Integer displayOrder;
+    }
+
+    // Utilise par MenuController.createDish() et MenuService.createDish()
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DishRequest {
+        private String name;
+        private String description;
+        private BigDecimal price;
+        private String imageUrl;
+        private boolean available;
+        private boolean featured;
+        private Integer prepTimeMinutes;
+        private String allergens;
+        private Long categoryId;
+    }
+
+    // Alias pour compatibilite avec CreateDishRequest et CreateCategoryRequest
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class CreateDishRequest {
+        private String name;
+        private String description;
+        private BigDecimal price;
+        private String imageUrl;
+        private boolean available;
+        private boolean featured;
+        private Integer prepTimeMinutes;
+        private String allergens;
+        private Long categoryId;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class CreateCategoryRequest {
+        private String name;
+        private String description;
+        private String imageUrl;
+        private Integer displayOrder;
     }
 }
