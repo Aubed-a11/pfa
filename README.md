@@ -39,7 +39,7 @@ npm run dev
 
 ---
 
-## 🌐 URLs
+##  URLs
 
 | Service  | URL |
 |----------|-----|
@@ -49,7 +49,7 @@ npm run dev
 
 ---
 
-## 👤 Comptes de démonstration
+##  Comptes de démonstration
 
 | Rôle    | Email                    | Mot de passe |
 |---------|--------------------------|--------------|
@@ -59,7 +59,7 @@ npm run dev
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 restaurant-pfa/
@@ -97,7 +97,7 @@ restaurant-pfa/
 
 ---
 
-## 📋 Fonctionnalités implémentées
+##  Fonctionnalités implémentées
 
 ### Backend (Spring Boot)
 - [x] Authentification JWT (login / register / refresh)
@@ -123,7 +123,7 @@ restaurant-pfa/
 
 ---
 
-## 🔧 Variables d'environnement
+##  Variables d'environnement
 
 ### Backend (`application.yml`)
 | Variable | Défaut | Description |
@@ -142,7 +142,7 @@ restaurant-pfa/
 
 ---
 
-## 🧪 Tester l'API
+##  Tester l'API
 
 Avec Swagger : http://localhost:8080/api/swagger-ui.html
 
