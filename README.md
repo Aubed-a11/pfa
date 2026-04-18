@@ -1,12 +1,12 @@
-# 🍽️ RestaurantPFA — Application Web & Mobile
+#  RestaurantPFA - Application Web & Mobile
 
 > Projet de Fin d'Année 2026 · Next.js 14 + Spring Boot 3 + PostgreSQL
 
 ---
 
-## 🚀 Lancement rapide
+##  Lancement rapide
 
-### Option 1 — Docker (recommandé, tout-en-un)
+### Option 1 - Docker (recommandé, tout-en-un)
 
 ```bash
 # Prérequis : Docker Desktop installé et démarré
@@ -14,7 +14,7 @@ chmod +x start-docker.sh
 ./start-docker.sh
 ```
 
-### Option 2 — Développement local (sans Docker)
+### Option 2 - Développement local (sans Docker)
 
 ```bash
 # Prérequis : Java 21, Maven, Node 20+, PostgreSQL 16, Redis 7
@@ -22,7 +22,7 @@ chmod +x start-dev.sh
 ./start-dev.sh
 ```
 
-### Option 3 — Lancement manuel
+### Option 3 - Lancement manuel
 
 **Backend :**
 ```bash
