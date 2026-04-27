@@ -1,0 +1,16 @@
+# =============================================
+# Variables d'environnement - NE PAS COMMIT
+# =============================================
+
+# PostgreSQL
+POSTGRES_DB=pfa_db
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+
+# pgAdmin
+PGADMIN_EMAIL=admin@pfa.com
+PGADMIN_PASSWORD=admin
+
+# JWT
+JWT_SECRET=pfa2026SuperSecretKeyForJwtTokenGeneration1234567890
+JWT_EXPIRATION=86400000

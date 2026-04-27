@@ -1,0 +1,53 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: restaurant-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/restaurant_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: Africa/Casablanca
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:3cfa76ef14937c1c0ea519f8fc057a80fcd04a7e4ace4f5a4f6e3a32b24b4b7a}
+    expiration: 86400000
+    refresh-expiration: 604800000
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.restaurant: DEBUG
+    org.springframework.security: INFO
